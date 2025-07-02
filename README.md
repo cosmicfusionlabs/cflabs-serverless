@@ -259,23 +259,3 @@ def health():
 if __name__ == '__main__':
     app.run(debug=True)
 ```
-
-### With Database
-
-```python
-# app.py
-from flask import Flask, jsonify
-import os
-
-app = Flask(__name__)
-
-@app.route('/users')
-def get_users():
-    # Your database logic here
-    return jsonify({"users": ["user1", "user2"]})
-
-if __name__ == '__main__':
-    app.run(debug=True)
-```
-
-Both examples work without any modifications when deployed with `cflabs-serverless`! 
