@@ -25,12 +25,172 @@ console = Console()
 
 
 @app.command()
+def generate(
+    lambda_name: str = typer.Option(None, "--name", "-n", help="Name for your Lambda function"),
+    region: str = typer.Option("us-east-1", "--region", "-r", help="AWS region"),
+    port: int = typer.Option(8000, "--port", "-p", help="Application port"),
+    memory_size: int = typer.Option(512, "--memory", help="Lambda memory size (MB)"),
+    timeout: int = typer.Option(30, "--timeout", "-t", help="Lambda timeout (seconds)"),
+    image_tag: str = typer.Option("latest", "--image-tag", "-i", help="Docker image tag to use for deployment"),
+    config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to config file"),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+):
+    """Generate deployment files (Dockerfile, template.yaml, etc.) without deploying."""
+    try:
+        project_root = utils.get_project_root()
+        
+        # Check prerequisites
+        if not utils.check_prerequisites():
+            raise typer.Exit(1)
+        
+        # Get or prompt for lambda name
+        if lambda_name is None:
+            lambda_name = Prompt.ask(
+                "Enter a name for your Lambda function",
+                default=f"{project_root.name}-flask-app"
+            )
+        
+        # Use default region if not provided
+        if region is None:
+            region = "us-east-1"
+        
+        # Detect Flask app
+        try:
+            app_module, app_object = utils.detect_flask_app()
+        except FileNotFoundError:
+            utils.print_error("app.py not found in current directory")
+            raise typer.Exit(1)
+        
+        # Generate stack name from lambda name
+        stack_name = f"{lambda_name}-stack"
+        
+        # Create configuration
+        config = {
+            "app": {
+                "module": app_module,
+                "object": app_object,
+                "port": port
+            },
+            "deployment": {
+                "stack_name": stack_name,
+                "lambda_name": lambda_name,
+                "region": region,
+                "memory_size": memory_size,
+                "timeout": timeout
+            },
+            "container": {
+                "base_image": "public.ecr.aws/lambda/python:3.11",
+                "working_dir": "/var/task"
+            }
+        }
+        
+        # Save config for future use
+        utils.save_config(config, config_path)
+        
+        console.print("[blue]Generating deployment files...[/blue]")
+        
+        # Generate Dockerfile
+        dockerfile_content = templates.DOCKERFILE_TEMPLATE.render(
+            base_image=config["container"]["base_image"],
+            working_dir=config["container"]["working_dir"],
+            port=config["app"]["port"],
+            app_module=config["app"]["module"],
+            app_object=config["app"]["object"]
+        )
+        
+        dockerfile_path = project_root / "Dockerfile"
+        if dockerfile_path.exists() and not force:
+            if not Confirm.ask("Dockerfile already exists. Overwrite?"):
+                console.print("[yellow]Skipping Dockerfile generation.[/yellow]")
+            else:
+                with open(dockerfile_path, 'w') as f:
+                    f.write(dockerfile_content)
+                console.print(f"[green]✅ Generated: {dockerfile_path}[/green]")
+        else:
+            with open(dockerfile_path, 'w') as f:
+                f.write(dockerfile_content)
+            console.print(f"[green]✅ Generated: {dockerfile_path}[/green]")
+
+        # Generate lambda_entry.py wrapper for Lambda
+        lambda_entry_content = templates.LAMBDA_ENTRY_TEMPLATE.render(
+            app_module=config["app"]["module"],
+            app_object=config["app"]["object"]
+        )
+        lambda_entry_path = project_root / "lambda_entry.py"
+        if lambda_entry_path.exists() and not force:
+            if not Confirm.ask("lambda_entry.py already exists. Overwrite?"):
+                console.print("[yellow]Skipping lambda_entry.py generation.[/yellow]")
+            else:
+                with open(lambda_entry_path, 'w') as f:
+                    f.write(lambda_entry_content)
+                console.print(f"[green]✅ Generated: {lambda_entry_path}[/green]")
+        else:
+            with open(lambda_entry_path, 'w') as f:
+                f.write(lambda_entry_content)
+            console.print(f"[green]✅ Generated: {lambda_entry_path}[/green]")
+        
+        # Generate SAM template
+        sam_content = templates.SAM_TEMPLATE.render(
+            timeout=config["deployment"]["timeout"],
+            memory_size=config["deployment"]["memory_size"],
+            port=config["app"]["port"]
+        )
+        
+        sam_path = project_root / "template.yaml"
+        if sam_path.exists() and not force:
+            if not Confirm.ask("template.yaml already exists. Overwrite?"):
+                console.print("[yellow]Skipping template.yaml generation.[/yellow]")
+            else:
+                with open(sam_path, 'w') as f:
+                    f.write(sam_content)
+                console.print(f"[green]✅ Generated: {sam_path}[/green]")
+        else:
+            with open(sam_path, 'w') as f:
+                f.write(sam_content)
+            console.print(f"[green]✅ Generated: {sam_path}[/green]")
+        
+        # Generate requirements.txt if it doesn't exist
+        requirements_path = project_root / "requirements.txt"
+        if not requirements_path.exists():
+            requirements_content = templates.REQUIREMENTS_TEMPLATE.render()
+            with open(requirements_path, 'w') as f:
+                f.write(requirements_content)
+            console.print(f"[green]✅ Generated: {requirements_path}[/green]")
+        else:
+            console.print(f"[blue]ℹ️  Using existing: {requirements_path}[/blue]")
+        
+        # Generate .dockerignore if it doesn't exist
+        dockerignore_path = project_root / ".dockerignore"
+        if not dockerignore_path.exists():
+            dockerignore_content = templates.DOCKERIGNORE_TEMPLATE.render()
+            with open(dockerignore_path, 'w') as f:
+                f.write(dockerignore_content)
+            console.print(f"[green]✅ Generated: {dockerignore_path}[/green]")
+        else:
+            console.print(f"[blue]ℹ️  Using existing: {dockerignore_path}[/blue]")
+        
+        console.print(f"\n[bold green]✅ All deployment files generated successfully![/bold green]")
+        console.print(f"Files created:")
+        console.print(f"  • Dockerfile")
+        console.print(f"  • template.yaml")
+        console.print(f"  • lambda_entry.py")
+        console.print(f"  • requirements.txt (if needed)")
+        console.print(f"  • .dockerignore (if needed)")
+        console.print(f"\nNext step: Run [yellow]cflabs-serverless deploy[/yellow] to deploy to AWS")
+        
+    except Exception as e:
+        utils.print_error(f"Failed to generate files: {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
 def deploy(
     lambda_name: str = typer.Option(None, "--name", "-n", help="Name for your Lambda function"),
     region: str = typer.Option(None, "--region", "-r", help="AWS region"),
     port: int = typer.Option(8000, "--port", "-p", help="Application port"),
     memory_size: int = typer.Option(512, "--memory", help="Lambda memory size (MB)"),
     timeout: int = typer.Option(30, "--timeout", "-t", help="Lambda timeout (seconds)"),
+    image_tag: str = typer.Option("latest", "--image-tag", "-i", help="Docker image tag to use for deployment"),
     config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to config file"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode with verbose output"),
 ):
@@ -166,9 +326,12 @@ def deploy(
             percentage = int((current_step / total_steps) * 100)
             task2 = progress.add_task(f"Creating ECR repository... ({percentage}%)", total=None)
             
+            if debug:
+                console.print(f"[blue]Debug: Using image tag: {image_tag}[/blue]")
+            
             repo_name = utils.get_ecr_repository_name(stack_name)
             repo_uri = utils.create_ecr_repository(repo_name, region)
-            image_uri = f"{repo_uri}:latest"
+            image_uri = f"{repo_uri}:{image_tag}"
             
             # Remove any existing SAM config to avoid conflicts
             sam_config_path = project_root / "samconfig.toml"
@@ -303,6 +466,9 @@ def deploy(
                 "--force-upload"
             ]
             
+            if debug:
+                console.print(f"[blue]Debug: SAM deploy command: {' '.join(deploy_cmd)}[/blue]")
+            
             # Add S3 bucket if we created one, otherwise use resolve-s3
             if s3_bucket_name:
                 deploy_cmd.extend(["--s3-bucket", s3_bucket_name])
@@ -397,8 +563,9 @@ def deploy(
                 console.print(f"[red]SAM deployment error: {e}[/red]")
                 raise
             
-            # Save image URI to config for future use
+            # Save image URI and tag to config for future use
             config["deployment"]["image_uri"] = image_uri
+            config["deployment"]["image_tag"] = image_tag
             utils.save_config(config, config_path)
         
         # Get deployment outputs
@@ -811,6 +978,112 @@ def troubleshoot():
         title="AWS Troubleshooting Guide",
         border_style="blue"
     ))
+
+
+@app.command()
+def create_workflow(
+    lambda_name: str = typer.Option(None, "--name", "-n", help="Name for your Lambda function"),
+    region: str = typer.Option("us-east-1", "--region", "-r", help="AWS region"),
+    stack_name: Optional[str] = typer.Option(None, "--stack-name", "-s", help="Name of the CloudFormation stack"),
+    ecr_repository: Optional[str] = typer.Option(None, "--ecr-repo", help="ECR repository name"),
+    config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to config file"),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing workflow file"),
+):
+    """Create GitHub Actions workflow for CI/CD deployment."""
+    try:
+        project_root = utils.get_project_root()
+        
+        # Load config if provided
+        config = None
+        if config_path and Path(config_path).exists():
+            config = utils.load_config(config_path)
+        
+        # Get or prompt for lambda name
+        if lambda_name is None:
+            if config and "deployment" in config:
+                lambda_name = config["deployment"]["lambda_name"]
+            else:
+                lambda_name = Prompt.ask(
+                    "Enter a name for your Lambda function",
+                    default=f"{project_root.name}-flask-app"
+                )
+        
+        # Generate stack name from lambda name if not provided
+        if stack_name is None:
+            stack_name = f"{lambda_name}-stack"
+        
+        # Generate ECR repository name if not provided
+        if ecr_repository is None:
+            ecr_repository = f"{lambda_name}-repo"
+        
+        # Create .github/workflows directory
+        workflows_dir = project_root / ".github" / "workflows"
+        workflows_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate workflow file
+        workflow_path = workflows_dir / "deploy.yml"
+        
+        if workflow_path.exists() and not force:
+            if not Confirm.ask("Workflow file already exists. Overwrite?"):
+                console.print("[yellow]Workflow creation cancelled.[/yellow]")
+                raise typer.Exit(0)
+        
+        # Generate workflow content
+        workflow_content = templates.GITHUB_ACTIONS_TEMPLATE.render(
+            region=region,
+            stack_name=stack_name,
+            lambda_name=lambda_name,
+            ecr_repository=ecr_repository
+        )
+        
+        # Write workflow file
+        with open(workflow_path, 'w') as f:
+            f.write(workflow_content)
+        
+        console.print(f"[green]✅ GitHub Actions workflow created: {workflow_path}[/green]")
+        
+        # Create or update .gitignore to exclude deployment artifacts
+        gitignore_path = project_root / ".gitignore"
+        gitignore_entries = [
+            "# cflabs-serverless deployment artifacts",
+            "cflabs-config.yaml",
+            "template.yaml",
+            ".aws-sam/",
+            "Dockerfile",
+            "lambda_entry.py",
+            "samconfig.toml"
+        ]
+        
+        if gitignore_path.exists():
+            with open(gitignore_path, 'r') as f:
+                existing_content = f.read()
+            
+            # Add entries if they don't exist
+            for entry in gitignore_entries:
+                if entry not in existing_content:
+                    with open(gitignore_path, 'a') as f:
+                        f.write(f"\n{entry}")
+        else:
+            with open(gitignore_path, 'w') as f:
+                f.write("\n".join(gitignore_entries))
+        
+        # Display next steps
+        console.print("\n[bold blue]Next Steps:[/bold blue]")
+        console.print("1. Add AWS credentials to your GitHub repository secrets:")
+        console.print("   - AWS_ACCESS_KEY_ID")
+        console.print("   - AWS_SECRET_ACCESS_KEY")
+        console.print("2. Ensure your AWS user has the necessary permissions:")
+        console.print("   - ECR: Create/update repositories")
+        console.print("   - CloudFormation: Create/update stacks")
+        console.print("   - Lambda: Create/update functions")
+        console.print("   - API Gateway: Create/update APIs")
+        console.print("   - S3: Create/update buckets")
+        console.print("3. Push your code to trigger the workflow")
+        console.print("\n[bold green]Your Flask app will be automatically deployed on every push to main/master![/bold green]")
+        
+    except Exception as e:
+        utils.print_error(f"Failed to create workflow: {str(e)}")
+        raise typer.Exit(1)
 
 
 @app.command()

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cflabs-serverless"
-version = "0.1.1"
+version = "0.1.4"
 description = "Deploy Flask apps to AWS Lambda + API Gateway with zero code changes"
 readme = "README.md"
 license = {text = "MIT"}

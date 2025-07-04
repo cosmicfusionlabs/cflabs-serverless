@@ -128,3 +128,6 @@ template.yaml
 Dockerfile
 .dockerignore
 requirements.txt 
+# cflabs-serverless deployment artifacts
+lambda_entry.py
+samconfig.toml
