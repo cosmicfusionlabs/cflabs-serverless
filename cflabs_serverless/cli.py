@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt, Confirm
-
+from datetime import datetime
 from . import utils
 from . import templates
 
@@ -31,12 +31,16 @@ def generate(
     port: int = typer.Option(8000, "--port", "-p", help="Application port"),
     memory_size: int = typer.Option(512, "--memory", help="Lambda memory size (MB)"),
     timeout: int = typer.Option(30, "--timeout", "-t", help="Lambda timeout (seconds)"),
-    image_tag: str = typer.Option("latest", "--image-tag", "-i", help="Docker image tag to use for deployment"),
+    image_tag: str = typer.Option(None, "--image-tag", "-i", help="Docker image tag to use for deployment"),
     config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to config file"),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
 ):
     """Generate deployment files (Dockerfile, template.yaml, etc.) without deploying."""
     try:
+        if not image_tag:
+            # generate a random image tag YYYYMMDDHHMMSS
+            image_tag = datetime.now().strftime("%Y%m%d%H%M%S")
+        
         project_root = utils.get_project_root()
         
         # Check prerequisites
@@ -190,12 +194,16 @@ def deploy(
     port: int = typer.Option(8000, "--port", "-p", help="Application port"),
     memory_size: int = typer.Option(512, "--memory", help="Lambda memory size (MB)"),
     timeout: int = typer.Option(30, "--timeout", "-t", help="Lambda timeout (seconds)"),
-    image_tag: str = typer.Option("latest", "--image-tag", "-i", help="Docker image tag to use for deployment"),
+    image_tag: str = typer.Option(None, "--image-tag", "-i", help="Docker image tag to use for deployment"),
     config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to config file"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode with verbose output"),
 ):
     """Deploy Flask app to AWS Lambda + API Gateway (init + build + deploy in one step)."""
     try:
+        if not image_tag:
+            # generate a random image tag YYYYMMDDHHMMSS
+            image_tag = datetime.now().strftime("%Y%m%d%H%M%S")
+            
         project_root = utils.get_project_root()
         
         # Check prerequisites
