@@ -121,13 +121,3 @@ Thumbs.db
 
 # AWS SAM
 .aws-sam/
-
-# cflabs-serverless specific
-cflabs-config.yaml
-template.yaml
-Dockerfile
-.dockerignore
-requirements.txt 
-# cflabs-serverless deployment artifacts
-lambda_entry.py
-samconfig.toml
