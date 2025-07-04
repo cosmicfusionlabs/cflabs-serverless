@@ -5,7 +5,7 @@ from jinja2 import Template
 # Dockerfile for AWS Lambda Python container using aws_lambda_wsgi and lambda_entry.py
 DOCKERFILE_TEMPLATE = Template("""
 # Use the official AWS Lambda Python base image
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
 # Install dependencies
 COPY requirements.txt .
@@ -148,7 +148,6 @@ wheels/
 *.egg
 
 # Virtual environments
-.env
 .venv
 env/
 venv/

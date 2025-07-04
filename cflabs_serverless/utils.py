@@ -200,7 +200,6 @@ def check_sam_configuration() -> bool:
         if result.returncode == 0:
             return True
         else:
-            console.print("[yellow]SAM configuration might need setup. This is normal for first-time use.[/yellow]")
             return True  # Don't fail, just warn
     except Exception as e:
         console.print(f"[yellow]SAM configuration check failed: {e}[/yellow]")

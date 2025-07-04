@@ -461,8 +461,10 @@ def deploy(
                 "--capabilities", "CAPABILITY_NAMED_IAM",
                 "--no-confirm-changeset",
                 "--no-fail-on-empty-changeset",
-                "--parameter-overrides", f"ImageUri={image_uri}",
-                "--image-repositories", f"FlaskFunction={image_uri}",
+                "--parameter-overrides", 
+                f"ImageUri={image_uri}",
+                "--image-repositories", 
+                f"FlaskFunction={image_uri}",
                 "--force-upload"
             ]
             
